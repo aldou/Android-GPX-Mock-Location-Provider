@@ -33,6 +33,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -42,7 +43,6 @@ import com.twolinessoftware.android.framework.util.Logger;
 
 public class MainActivity extends Activity implements GpsPlaybackListener {
 
-    public static final String PREFERENCES_NAME = "MockGPXLocationPreferencesFile";
     public static final String LAST_FILE = "lastFile";
 
     private static final int REQUEST_FILE = 1;
@@ -75,8 +75,10 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         }
 
         mEditText = (EditText) findViewById(R.id.file_path);
-        SharedPreferences settings = getSharedPreferences(MainActivity.PREFERENCES_NAME, 0);
-        mEditText.setText(settings.getString(MainActivity.LAST_FILE, ""));
+        SharedPreferences settings = getPreferences(MODE_PRIVATE);
+        String storedFile = settings.getString(MainActivity.LAST_FILE, "");
+        Log.i(MainActivity.LOGNAME, "Loaded file preference: " + storedFile);
+        mEditText.setText(storedFile);
 
         filepath = mEditText.getText().toString();
 
@@ -147,6 +149,22 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         stopPlaybackService();
     }
 
+    public void onBackTen(View view) {
+        Log.i(MainActivity.LOGNAME, "Would jump back ten minutes.");
+    }
+
+    public void onBackOne(View view) {
+        Log.i(MainActivity.LOGNAME, "Would jump back one minute.");
+    }
+
+    public void onForwardOne(View view) {
+        Log.i(MainActivity.LOGNAME, "Would jump forward one minute.");
+    }
+
+    public void onForwardTen(View view) {
+        Log.i(MainActivity.LOGNAME, "Would jump forward ten minutes.");
+    }
+
     /**
      * Opens the file manager to select a file to open.
      */
@@ -169,10 +187,6 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
             // No compatible file manager was found.
             Toast.makeText(this, R.string.no_filemanager_installed, Toast.LENGTH_LONG).show();
         }
-        SharedPreferences settings = getSharedPreferences(MainActivity.PREFERENCES_NAME, 0);
-        SharedPreferences.Editor editor = settings.edit();
-        editor.putString(MainActivity.LAST_FILE , fileName);
-        editor.commit();
     }
 
     public void startPlaybackService() {
@@ -213,14 +227,14 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
                 Button stop = (Button) findViewById(R.id.stop);
 
                 switch (state) {
-                    case PlaybackService.RUNNING:
-                        start.setEnabled(false);
-                        stop.setEnabled(true);
-                        break;
-                    case PlaybackService.STOPPED:
-                        start.setEnabled(true);
-                        stop.setEnabled(false);
-                        break;
+                case PlaybackService.RUNNING:
+                    start.setEnabled(false);
+                    stop.setEnabled(true);
+                    break;
+                case PlaybackService.STOPPED:
+                    start.setEnabled(true);
+                    stop.setEnabled(false);
+                    break;
                 }
 
             }
@@ -257,19 +271,26 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         super.onActivityResult(requestCode, resultCode, data);
 
         switch (requestCode) {
-            case REQUEST_FILE:
-                if ((resultCode == Activity.RESULT_OK) && (data != null)) {
-                    // obtain the filename
-                    Uri fileUri = data.getData();
-                    if (fileUri != null) {
-                        String filePath = fileUri.getPath();
-                        if (filePath != null) {
-                            mEditText.setText(filePath);
-                            filepath = filePath;
-                        }
+        case REQUEST_FILE:
+            if ((resultCode == Activity.RESULT_OK) && (data != null)) {
+                // obtain the filename
+                Uri fileUri = data.getData();
+                if (fileUri != null) {
+                    String filePath = fileUri.getPath();
+                    if (filePath != null) {
+                        mEditText.setText(filePath);
+                        filepath = filePath;
+
+                        // Save selected file for future reference.
+                        SharedPreferences settings = getPreferences(MODE_PRIVATE);
+                        SharedPreferences.Editor editor = settings.edit();
+                        editor.putString(MainActivity.LAST_FILE, filePath);
+                        editor.commit();
+                        Log.i(MainActivity.LOGNAME, "Stored file preference: " + filePath);
                     }
                 }
-                break;
+            }
+            break;
         }
     }
 

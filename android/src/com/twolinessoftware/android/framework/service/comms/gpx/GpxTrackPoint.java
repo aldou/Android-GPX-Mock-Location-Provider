@@ -17,6 +17,10 @@ package com.twolinessoftware.android.framework.service.comms.gpx;
 
 import java.io.Serializable;
 
+import android.util.Log;
+
+import com.twolinessoftware.android.MainActivity;
+
 public class GpxTrackPoint implements Serializable {
 
 	private static final long serialVersionUID = -4894963006110633397L;
@@ -40,6 +44,9 @@ public class GpxTrackPoint implements Serializable {
 	}
 
 	public void setTime(String time) {
+	    if(time.length()<10) {
+	        Log.e("GPXTrackPoint", "TRAP!");
+	    }
 		this.time = time;
 	}
 
