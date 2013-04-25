@@ -27,6 +27,7 @@ import android.content.DialogInterface.OnCancelListener;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -41,250 +42,258 @@ import com.twolinessoftware.android.framework.util.Logger;
 
 public class MainActivity extends Activity implements GpsPlaybackListener {
 
-	private static final int REQUEST_FILE = 1;
+    public static final String PREFERENCES_NAME = "MockGPXLocationPreferencesFile";
+    public static final String LAST_FILE = "lastFile";
 
-	private static final String LOGNAME = "SimulatedGPSProvider.MainActivity";
+    private static final int REQUEST_FILE = 1;
 
-	private ServiceConnection connection;
-	private IPlaybackService service;
-	private EditText mEditText;
+    private static final String LOGNAME = "SimulatedGPSProvider.MainActivity";
 
-	private String filepath;
+    private ServiceConnection connection;
+    private IPlaybackService service;
+    private EditText mEditText;
 
-	private GpsPlaybackBroadcastReceiver receiver;
+    private String filepath;
 
-	private int state;
+    private GpsPlaybackBroadcastReceiver receiver;
 
-	private ProgressDialog progressDialog;
+    private int state;
 
-	/** Called when the activity is first created. */
-	@Override
-	public void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.main);
+    private ProgressDialog progressDialog;
 
-		// test that mock locations are allowed so a more descriptive error
-		// message can be logged
-		if (Settings.Secure.getInt(getContentResolver(),
-				Settings.Secure.ALLOW_MOCK_LOCATION, 0) == 0) {
-			Toast.makeText(this, "MockLocations needs to be enabled",
-					Toast.LENGTH_SHORT).show();
-			finish();
-		}
+    /** Called when the activity is first created. */
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.main);
 
-		mEditText = (EditText) findViewById(R.id.file_path);
+        // test that mock locations are allowed so a more descriptive error
+        // message can be logged
+        if (Settings.Secure.getInt(getContentResolver(), Settings.Secure.ALLOW_MOCK_LOCATION, 0) == 0) {
+            Toast.makeText(this, "MockLocations needs to be enabled", Toast.LENGTH_LONG).show();
+            finish();
+        }
 
-		filepath = mEditText.getText().toString();
+        mEditText = (EditText) findViewById(R.id.file_path);
+        SharedPreferences settings = getSharedPreferences(MainActivity.PREFERENCES_NAME, 0);
+        mEditText.setText(settings.getString(MainActivity.LAST_FILE, ""));
 
-	}
+        filepath = mEditText.getText().toString();
 
-	@Override
-	protected void onStart() {
-		bindStatusListener();
-		connectToService();
-		super.onStart();
-	}
+    }
 
-	@Override
-	protected void onStop() {
-		if (receiver != null)
-			unregisterReceiver(receiver);
+    @Override
+    protected void onStart() {
+        bindStatusListener();
+        connectToService();
+        super.onStart();
+    }
 
-		try {
-			unbindService(connection);
-		} catch (Exception ie) {
-		}
+    @Override
+    protected void onStop() {
+        if (receiver != null) {
+            unregisterReceiver(receiver);
+        }
 
-		super.onPause();
-	}
+        try {
+            unbindService(connection);
+        } catch (Exception ie) {
+        }
 
-	private void hideProgressDialog() {
-		if (progressDialog != null)
-			progressDialog.cancel();
-	}
+        super.onPause();
+    }
 
-	private void showProgressDialog() {
-		// Display progress dialog
+    private void hideProgressDialog() {
+        if (progressDialog != null) {
+            progressDialog.cancel();
+        }
+    }
 
-		progressDialog = ProgressDialog.show(this,
-				getString(R.string.please_wait),
-				getString(R.string.loading_file), true);
-		progressDialog.setCancelable(true);
-		progressDialog.setOnCancelListener(new OnCancelListener() {
-			@Override
-			public void onCancel(DialogInterface dialog) {
-				dialog.dismiss();
-			}
-		});
-	}
+    private void showProgressDialog() {
+        // Display progress dialog
 
-	private void bindStatusListener() {
-		receiver = new GpsPlaybackBroadcastReceiver(this);
-		IntentFilter filter = new IntentFilter();
-		filter.addAction(GpsPlaybackBroadcastReceiver.INTENT_BROADCAST);
-		registerReceiver(receiver, filter);
-	}
+        progressDialog = ProgressDialog.show(this, getString(R.string.please_wait), getString(R.string.loading_file), true);
+        progressDialog.setCancelable(true);
+        progressDialog.setOnCancelListener(new OnCancelListener() {
+            @Override
+            public void onCancel(DialogInterface dialog) {
+                dialog.dismiss();
+            }
+        });
+    }
 
-	private void connectToService() {
-		Intent i = new Intent(getApplicationContext(), PlaybackService.class);
-		connection = new PlaybackServiceConnection();
-		bindService(i, connection, Context.BIND_AUTO_CREATE);
-	}
+    private void bindStatusListener() {
+        receiver = new GpsPlaybackBroadcastReceiver(this);
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(GpsPlaybackBroadcastReceiver.INTENT_BROADCAST);
+        registerReceiver(receiver, filter);
+    }
 
-	public void onClickOpenFile(View view) {
-		openFile();
-	}
+    private void connectToService() {
+        Intent i = new Intent(getApplicationContext(), PlaybackService.class);
+        connection = new PlaybackServiceConnection();
+        bindService(i, connection, Context.BIND_AUTO_CREATE);
+    }
 
-	public void onClickStart(View view) {
-		startPlaybackService();
-	}
+    public void onClickOpenFile(View view) {
+        openFile();
+    }
 
-	public void onClickStop(View view) {
-		stopPlaybackService();
-	}
+    public void onClickStart(View view) {
+        startPlaybackService();
+    }
 
-	/**
-	 * Opens the file manager to select a file to open.
-	 */
-	public void openFile() {
-		String fileName = mEditText.getText().toString();
+    public void onClickStop(View view) {
+        stopPlaybackService();
+    }
 
-		Intent intent = new Intent(FileManagerIntents.ACTION_PICK_FILE);
+    /**
+     * Opens the file manager to select a file to open.
+     */
+    public void openFile() {
+        String fileName = mEditText.getText().toString();
 
-		// Construct URI from file name.
-		File file = new File(fileName);
-		intent.setData(Uri.fromFile(file));
+        Intent intent = new Intent(FileManagerIntents.ACTION_PICK_FILE);
 
-		// Set fancy title and button (optional)
-		intent.putExtra(FileManagerIntents.EXTRA_TITLE,
-				getString(R.string.open_title));
-		intent.putExtra(FileManagerIntents.EXTRA_BUTTON_TEXT,
-				getString(R.string.open_button));
+        // Construct URI from file name.
+        File file = new File(fileName);
+        intent.setData(Uri.fromFile(file));
 
-		try {
-			startActivityForResult(intent, REQUEST_FILE);
-		} catch (ActivityNotFoundException e) {
-			// No compatible file manager was found.
-			Toast.makeText(this, R.string.no_filemanager_installed,
-					Toast.LENGTH_SHORT).show();
-		}
-	}
+        // Set fancy title and button (optional)
+        intent.putExtra(FileManagerIntents.EXTRA_TITLE, getString(R.string.open_title));
+        intent.putExtra(FileManagerIntents.EXTRA_BUTTON_TEXT, getString(R.string.open_button));
 
-	public void startPlaybackService() {
+        try {
+            startActivityForResult(intent, MainActivity.REQUEST_FILE);
+        } catch (ActivityNotFoundException e) {
+            // No compatible file manager was found.
+            Toast.makeText(this, R.string.no_filemanager_installed, Toast.LENGTH_LONG).show();
+        }
+        SharedPreferences settings = getSharedPreferences(MainActivity.PREFERENCES_NAME, 0);
+        SharedPreferences.Editor editor = settings.edit();
+        editor.putString(MainActivity.LAST_FILE , fileName);
+        editor.commit();
+    }
 
-		if (filepath == null) {
-			Toast.makeText(this, "No File Loaded", Toast.LENGTH_SHORT).show();
-			return;
-		}
+    public void startPlaybackService() {
 
-		try {
-			if (service != null)
-				service.startService(filepath);
+        if (filepath == null) {
+            Toast.makeText(this, "No File Loaded", Toast.LENGTH_LONG).show();
+            return;
+        }
 
-		} catch (RemoteException e) {
-		}
+        try {
+            if (service != null) {
+                service.startService(filepath);
+            }
 
-		Intent i = new Intent(getApplicationContext(), PlaybackService.class);
-		startService(i);
-	}
+        } catch (RemoteException e) {
+        }
 
-	public void stopPlaybackService() {
+        Intent i = new Intent(getApplicationContext(), PlaybackService.class);
+        startService(i);
+    }
 
-		try {
-			if (service != null)
-				service.stopService();
+    public void stopPlaybackService() {
 
-		} catch (RemoteException e) {
-		}
-	}
+        try {
+            if (service != null) {
+                service.stopService();
+            }
 
-	private void updateUi() {
-		runOnUiThread(new Runnable() {
-			@Override
-			public void run() {
-				Button start = (Button) findViewById(R.id.start);
-				Button stop = (Button) findViewById(R.id.stop);
+        } catch (RemoteException e) {
+        }
+    }
 
-				switch (state) {
-				case PlaybackService.RUNNING:
-					start.setEnabled(false);
-					stop.setEnabled(true);
-					break;
-				case PlaybackService.STOPPED:
-					start.setEnabled(true);
-					stop.setEnabled(false);
-					break;
-				}
+    private void updateUi() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Button start = (Button) findViewById(R.id.start);
+                Button stop = (Button) findViewById(R.id.stop);
 
-			}
+                switch (state) {
+                    case PlaybackService.RUNNING:
+                        start.setEnabled(false);
+                        stop.setEnabled(true);
+                        break;
+                    case PlaybackService.STOPPED:
+                        start.setEnabled(true);
+                        stop.setEnabled(false);
+                        break;
+                }
 
-		});
+            }
 
-	}
+        });
 
-	class PlaybackServiceConnection implements ServiceConnection {
+    }
 
-		public void onServiceConnected(ComponentName name, IBinder boundService) {
-			service = IPlaybackService.Stub.asInterface(boundService);
-			try {
-				state = service.getState();
-			} catch (RemoteException e) {
-				Logger.e(LOGNAME, "Unable to access state:" + e.getMessage());
-			}
-			updateUi();
-		}
+    class PlaybackServiceConnection implements ServiceConnection {
 
-		public void onServiceDisconnected(ComponentName name) {
-			service = null;
-		}
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder boundService) {
+            service = IPlaybackService.Stub.asInterface(boundService);
+            try {
+                state = service.getState();
+            } catch (RemoteException e) {
+                Logger.e(MainActivity.LOGNAME, "Unable to access state:" + e.getMessage());
+            }
+            updateUi();
+        }
 
-	}
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            service = null;
+        }
 
-	/**
-	 * This is called after the file manager finished.
-	 */
-	@Override
-	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		super.onActivityResult(requestCode, resultCode, data);
+    }
 
-		switch (requestCode) {
-		case REQUEST_FILE:
-			if (resultCode == RESULT_OK && data != null) {
-				// obtain the filename
-				Uri fileUri = data.getData();
-				if (fileUri != null) {
-					String filePath = fileUri.getPath();
-					if (filePath != null) {
-						mEditText.setText(filePath);
-						this.filepath = filePath;
-					}
-				}
-			}
-			break;
-		}
-	}
+    /**
+     * This is called after the file manager finished.
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
 
-	@Override
-	public void onFileLoadStarted() {
-		Logger.d(LOGNAME, "File loading started");
-		showProgressDialog();
-	}
+        switch (requestCode) {
+            case REQUEST_FILE:
+                if ((resultCode == Activity.RESULT_OK) && (data != null)) {
+                    // obtain the filename
+                    Uri fileUri = data.getData();
+                    if (fileUri != null) {
+                        String filePath = fileUri.getPath();
+                        if (filePath != null) {
+                            mEditText.setText(filePath);
+                            filepath = filePath;
+                        }
+                    }
+                }
+                break;
+        }
+    }
 
-	@Override
-	public void onFileLoadFinished() {
-		Logger.d(LOGNAME, "File loading finished");
-		hideProgressDialog();
-	}
+    @Override
+    public void onFileLoadStarted() {
+        Logger.d(MainActivity.LOGNAME, "File loading started");
+        showProgressDialog();
+    }
 
-	@Override
-	public void onStatusChange(int newStatus) {
-		state = newStatus;
-		updateUi();
-	}
+    @Override
+    public void onFileLoadFinished() {
+        Logger.d(MainActivity.LOGNAME, "File loading finished");
+        hideProgressDialog();
+    }
 
-	@Override
-	public void onFileError(String message) {
-		hideProgressDialog();
-	}
+    @Override
+    public void onStatusChange(int newStatus) {
+        state = newStatus;
+        updateUi();
+    }
+
+    @Override
+    public void onFileError(String message) {
+        hideProgressDialog();
+    }
 
 }
