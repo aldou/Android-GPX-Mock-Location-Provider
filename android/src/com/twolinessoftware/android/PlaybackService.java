@@ -15,14 +15,17 @@
  */
 package com.twolinessoftware.android;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.InputStreamReader;
+import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
+
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -36,11 +39,11 @@ import android.os.AsyncTask;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.Xml;
 
 import com.twolinessoftware.android.framework.service.comms.gpx.GpxSaxParser;
 import com.twolinessoftware.android.framework.service.comms.gpx.GpxSaxParserListener;
 import com.twolinessoftware.android.framework.service.comms.gpx.GpxTrackPoint;
-import com.twolinessoftware.android.framework.util.Logger;
 
 public class PlaybackService extends Service implements GpxSaxParserListener {
 
@@ -229,31 +232,32 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
     }
 
     private String loadFile(String file) {
-
-        try {
-            File f = new File(file);
-
-            FileInputStream fileIS = new FileInputStream(f);
-
-            BufferedReader buf = new BufferedReader(new InputStreamReader(fileIS));
-
-            String readString = new String();
-
-            StringBuffer xml = new StringBuffer();
-            while ((readString = buf.readLine()) != null) {
-                xml.append(readString);
-            }
-
-            Logger.d(PlaybackService.LOG, "Finished reading in file");
-
-            buf.close();
-            return xml.toString();
-
-        } catch (Exception e) {
-            broadcastError("Error in the GPX file, unable to read it");
-        }
-
-        return null;
+        return "";
+        // try {
+        // File f = new File(file);
+        //
+        // FileInputStream fileIS = new FileInputStream(f);
+        //
+        // BufferedReader buf = new BufferedReader(new
+        // InputStreamReader(fileIS));
+        //
+        // String readString = new String();
+        //
+        // StringBuffer xml = new StringBuffer();
+        // while ((readString = buf.readLine()) != null) {
+        // xml.append(readString);
+        // }
+        //
+        // Logger.d(PlaybackService.LOG, "Finished reading in file");
+        //
+        // buf.close();
+        // return xml.toString();
+        //
+        // } catch (Exception e) {
+        // broadcastError("Error in the GPX file, unable to read it");
+        // }
+        //
+        // return null;
     }
 
     @Override
@@ -359,13 +363,68 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
 
             startTimeOffset = 0;
 
-            String xml = loadFile(file);
-
-            publishProgress(1);
-
-            queueGpxPositions(xml);
+            File f = new File(file);
+            try {
+                FileInputStream fileIS = new FileInputStream(f);
+                XmlPullParser parser = Xml.newPullParser();
+                parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+                parser.setInput(fileIS, null);
+                parser.nextTag();
+                readTrackPoints(parser);
+            } catch (Exception e) {
+                Log.e(LOG, e.getMessage());
+            }
+            // String xml = loadFile(file);
+            //
+            // publishProgress(1);
+            //
+            // queueGpxPositions(xml);
 
             return null;
+        }
+
+        private void readTrackPoints(XmlPullParser parser) {
+            List<GpxTrackPoint> trackPoints = new ArrayList<GpxTrackPoint>();
+            try {
+                parser.require(XmlPullParser.START_TAG, null, "trkseg");
+                while (parser.next() != XmlPullParser.END_TAG) {
+                    Log.i(LOG, "Attribute count: " + parser.getAttributeCount());
+                    if (parser.getEventType() != XmlPullParser.START_TAG) {
+                        continue;
+                    }
+                    String name = parser.getName();
+                    // Starts by looking for the entry tag
+                    if (name.equals("trkpt")) {
+                        trackPoints.add(readTrackPoint(parser));
+                    } else {
+                        skip(parser);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(LOG, e.getMessage());
+            }
+        }
+
+        private GpxTrackPoint readTrackPoint(XmlPullParser parser) {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        private void skip(XmlPullParser parser) throws XmlPullParserException, IOException {
+            if (parser.getEventType() != XmlPullParser.START_TAG) {
+                throw new IllegalStateException();
+            }
+            int depth = 1;
+            while (depth != 0) {
+                switch (parser.next()) {
+                case XmlPullParser.END_TAG:
+                    depth--;
+                    break;
+                case XmlPullParser.START_TAG:
+                    depth++;
+                    break;
+                }
+            }
         }
 
         @Override
