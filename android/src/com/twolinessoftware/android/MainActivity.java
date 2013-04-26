@@ -39,8 +39,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import com.twolinessoftware.android.framework.util.Logger;
-
 public class MainActivity extends Activity implements GpsPlaybackListener {
 
     public static final String LAST_FILE = "lastFile";
@@ -75,7 +73,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         }
 
         mEditText = (EditText) findViewById(R.id.file_path);
-        SharedPreferences settings = getPreferences(MODE_PRIVATE);
+        SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
         String storedFile = settings.getString(MainActivity.LAST_FILE, "");
         Log.i(MainActivity.LOGNAME, "Loaded file preference: " + storedFile);
         mEditText.setText(storedFile);
@@ -200,8 +198,8 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
             if (service != null) {
                 service.startService(filepath);
             }
-
         } catch (RemoteException e) {
+            Log.e(MainActivity.LOGNAME, e.getMessage());
         }
 
         Intent i = new Intent(getApplicationContext(), PlaybackService.class);
@@ -209,13 +207,12 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
     }
 
     public void stopPlaybackService() {
-
         try {
             if (service != null) {
                 service.stopService();
             }
-
         } catch (RemoteException e) {
+            Log.e(MainActivity.LOGNAME, e.getMessage());
         }
     }
 
@@ -227,20 +224,17 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
                 Button stop = (Button) findViewById(R.id.stop);
 
                 switch (state) {
-                case PlaybackService.RUNNING:
-                    start.setEnabled(false);
-                    stop.setEnabled(true);
-                    break;
-                case PlaybackService.STOPPED:
-                    start.setEnabled(true);
-                    stop.setEnabled(false);
-                    break;
+                    case PlaybackService.RUNNING:
+                        start.setEnabled(false);
+                        stop.setEnabled(true);
+                        break;
+                    case PlaybackService.STOPPED:
+                        start.setEnabled(true);
+                        stop.setEnabled(false);
+                        break;
                 }
-
             }
-
         });
-
     }
 
     class PlaybackServiceConnection implements ServiceConnection {
@@ -251,7 +245,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
             try {
                 state = service.getState();
             } catch (RemoteException e) {
-                Logger.e(MainActivity.LOGNAME, "Unable to access state:" + e.getMessage());
+                Log.e(MainActivity.LOGNAME, "Unable to access state:" + e.getMessage());
             }
             updateUi();
         }
@@ -260,7 +254,6 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         public void onServiceDisconnected(ComponentName name) {
             service = null;
         }
-
     }
 
     /**
@@ -271,38 +264,38 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         super.onActivityResult(requestCode, resultCode, data);
 
         switch (requestCode) {
-        case REQUEST_FILE:
-            if ((resultCode == Activity.RESULT_OK) && (data != null)) {
-                // obtain the filename
-                Uri fileUri = data.getData();
-                if (fileUri != null) {
-                    String filePath = fileUri.getPath();
-                    if (filePath != null) {
-                        mEditText.setText(filePath);
-                        filepath = filePath;
+            case REQUEST_FILE:
+                if ((resultCode == Activity.RESULT_OK) && (data != null)) {
+                    // obtain the filename
+                    Uri fileUri = data.getData();
+                    if (fileUri != null) {
+                        String filePath = fileUri.getPath();
+                        if (filePath != null) {
+                            mEditText.setText(filePath);
+                            filepath = filePath;
 
-                        // Save selected file for future reference.
-                        SharedPreferences settings = getPreferences(MODE_PRIVATE);
-                        SharedPreferences.Editor editor = settings.edit();
-                        editor.putString(MainActivity.LAST_FILE, filePath);
-                        editor.commit();
-                        Log.i(MainActivity.LOGNAME, "Stored file preference: " + filePath);
+                            // Save selected file for future reference.
+                            SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
+                            SharedPreferences.Editor editor = settings.edit();
+                            editor.putString(MainActivity.LAST_FILE, filePath);
+                            editor.commit();
+                            Log.i(MainActivity.LOGNAME, "Stored file preference: " + filePath);
+                        }
                     }
                 }
-            }
-            break;
+                break;
         }
     }
 
     @Override
     public void onFileLoadStarted() {
-        Logger.d(MainActivity.LOGNAME, "File loading started");
+        Log.d(MainActivity.LOGNAME, "File loading started");
         showProgressDialog();
     }
 
     @Override
     public void onFileLoadFinished() {
-        Logger.d(MainActivity.LOGNAME, "File loading finished");
+        Log.d(MainActivity.LOGNAME, "File loading finished");
         hideProgressDialog();
     }
 

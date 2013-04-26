@@ -4,9 +4,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,17 +15,13 @@
  */
 package com.twolinessoftware.android;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -38,14 +34,15 @@ import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.support.v4.app.NotificationCompat;
 import android.util.Log;
-import android.util.Xml;
 
-import com.twolinessoftware.android.framework.service.comms.gpx.GpxSaxParser;
-import com.twolinessoftware.android.framework.service.comms.gpx.GpxSaxParserListener;
+import com.twolinessoftware.android.framework.service.comms.gpx.GpxPullParser;
+import com.twolinessoftware.android.framework.service.comms.gpx.GpxPullParserListener;
 import com.twolinessoftware.android.framework.service.comms.gpx.GpxTrackPoint;
+import com.twolinessoftware.android.framework.service.comms.gpx.GpxTrackSegments;
 
-public class PlaybackService extends Service implements GpxSaxParserListener {
+public class PlaybackService extends Service implements GpxPullParserListener {
 
     private NotificationManager mNM;
 
@@ -55,14 +52,14 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
 
     public static final long UPDATE_LOCATION_WAIT_TIME = 1000;
 
-    private final ArrayList<GpxTrackPoint> pointList = new ArrayList<GpxTrackPoint>();
+    private final List<GpxTrackPoint> pointList = new ArrayList<GpxTrackPoint>();
 
     public static final boolean CONTINUOUS = true;
 
     public static final int RUNNING = 0;
     public static final int STOPPED = 1;
 
-    private static final String PROVIDER_NAME = LocationManager.GPS_PROVIDER;
+    private static final String PROVIDER_NAME = "mockgps"; // LocationManager.GPS_PROVIDER;
 
     private final IPlaybackService.Stub mBinder = new IPlaybackService.Stub() {
 
@@ -174,7 +171,8 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
     }
 
     private void queueGpxPositions(String xml) {
-        GpxSaxParser parser = new GpxSaxParser(this);
+        // GpxSaxParser parser = new GpxSaxParser(this);
+        GpxPullParser parser = new GpxPullParser(this);
         parser.parse(xml);
     }
 
@@ -202,8 +200,8 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
                 true, // requiresCell,
                 false, // hasMonetaryCost,
                 false, // supportsAltitude,
-                false, // supportsSpeed, s
-                false, // upportsBearing,
+                false, // supportsSpeed,
+                false, // supportsBearing,
                 Criteria.POWER_MEDIUM, // powerRequirement
                 Criteria.ACCURACY_FINE); // accuracy
     }
@@ -211,79 +209,66 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
     /**
      * Show a notification while this service is running.
      */
-    @SuppressWarnings("deprecation")
     private void showNotification() {
         // In this sample, we'll use the same text for the ticker and the
         // expanded notification
         CharSequence text = "GPX Playback Running";
 
-        // Set the icon, scrolling text and timestamp.
-        Notification notification = new Notification(R.drawable.ic_playback_running, text, System.currentTimeMillis());
-
         // The PendingIntent to launch our activity if the user selects this
         // notification
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), 0);
 
-        // Set the info for the views that show in the notification panel.
-        notification.setLatestEventInfo(this, "GPX Playback Manager", text, contentIntent);
+        // Set the icon, scrolling text and timestamp.
+        Notification notification = new NotificationCompat.Builder(this).setContentText(text).setSmallIcon(R.drawable.ic_playback_running)
+                .setWhen(System.currentTimeMillis()).setContentTitle("GPX Playback Manager").setContentIntent(contentIntent).build();
 
         // Send the notification.
         mNM.notify(PlaybackService.NOTIFICATION, notification);
     }
 
     private String loadFile(String file) {
-        return "";
-        // try {
-        // File f = new File(file);
-        //
-        // FileInputStream fileIS = new FileInputStream(f);
-        //
-        // BufferedReader buf = new BufferedReader(new
-        // InputStreamReader(fileIS));
-        //
-        // String readString = new String();
-        //
-        // StringBuffer xml = new StringBuffer();
-        // while ((readString = buf.readLine()) != null) {
-        // xml.append(readString);
-        // }
-        //
-        // Logger.d(PlaybackService.LOG, "Finished reading in file");
-        //
-        // buf.close();
-        // return xml.toString();
-        //
-        // } catch (Exception e) {
-        // broadcastError("Error in the GPX file, unable to read it");
-        // }
-        //
-        // return null;
+        try {
+            File f = new File(file);
+
+            FileInputStream fileIS = new FileInputStream(f);
+
+            BufferedReader buf = new BufferedReader(new InputStreamReader(fileIS));
+
+            String readString = new String();
+
+            StringBuffer xml = new StringBuffer();
+            while ((readString = buf.readLine()) != null) {
+                xml.append(readString);
+            }
+
+            Log.d(PlaybackService.LOG, "Finished reading in file");
+
+            buf.close();
+            return xml.toString();
+
+        } catch (Exception e) {
+            broadcastError("Error in the GPX file, unable to read it");
+        }
+
+        return null;
     }
 
     @Override
     public void onGpxError(String message) {
+        Log.e(PlaybackService.LOG, message);
         broadcastError(message);
     }
 
     @Override
     public void onGpxPoint(GpxTrackPoint item) {
-
         long delay = System.currentTimeMillis() + 2000; // ms until the point
                                                         // should be displayed
-
         long gpsPointTime = 0;
 
         // Calculate the delay
-        if (item.getTime() != null) {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-
-            try {
-                Date gpsDate = format.parse(item.getTime());
-                gpsPointTime = gpsDate.getTime();
-            } catch (ParseException e) {
-                Log.e(PlaybackService.LOG, "Unable to parse time:" + item.getTime());
-                gpsPointTime = System.currentTimeMillis();
-            }
+        if (item.getTime().getTime() != 0) {
+            Date gpsDate = item.getTime();
+            gpsPointTime = gpsDate.getTime();
 
             if (firstGpsTime == 0) {
                 firstGpsTime = gpsPointTime;
@@ -300,7 +285,6 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
         if (state == PlaybackService.RUNNING) {
             if (delay > 0) {
                 Log.d(PlaybackService.LOG, "Sending Point in:" + (delay - System.currentTimeMillis()) + "ms");
-
                 SendLocationWorker worker = new SendLocationWorker(mLocationManager, item, PlaybackService.PROVIDER_NAME, delay);
                 queue.addToQueue(worker);
             } else {
@@ -312,12 +296,12 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
 
     @Override
     public void onGpxStart() {
-        // Start Parsing
+        Log.i(PlaybackService.LOG, "GPX started.");
     }
 
     @Override
-    public void onGpxEnd() {
-        // End Parsing
+    public void onGpxEnd(int trackPointCount) {
+        Log.i(PlaybackService.LOG, "GPX ended with " + trackPointCount + " points parsed.");
     }
 
     private void broadcastStatus(GpsPlaybackBroadcastReceiver.Status status) {
@@ -363,80 +347,27 @@ public class PlaybackService extends Service implements GpxSaxParserListener {
 
             startTimeOffset = 0;
 
-            File f = new File(file);
-            try {
-                FileInputStream fileIS = new FileInputStream(f);
-                XmlPullParser parser = Xml.newPullParser();
-                parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
-                parser.setInput(fileIS, null);
-                parser.nextTag();
-                readTrackPoints(parser);
-            } catch (Exception e) {
-                Log.e(LOG, e.getMessage());
-            }
-            // String xml = loadFile(file);
-            //
-            // publishProgress(1);
-            //
-            // queueGpxPositions(xml);
+            String xml = loadFile(file);
+
+            publishProgress(1);
+
+            queueGpxPositions(xml);
 
             return null;
-        }
-
-        private void readTrackPoints(XmlPullParser parser) {
-            List<GpxTrackPoint> trackPoints = new ArrayList<GpxTrackPoint>();
-            try {
-                parser.require(XmlPullParser.START_TAG, null, "trkseg");
-                while (parser.next() != XmlPullParser.END_TAG) {
-                    Log.i(LOG, "Attribute count: " + parser.getAttributeCount());
-                    if (parser.getEventType() != XmlPullParser.START_TAG) {
-                        continue;
-                    }
-                    String name = parser.getName();
-                    // Starts by looking for the entry tag
-                    if (name.equals("trkpt")) {
-                        trackPoints.add(readTrackPoint(parser));
-                    } else {
-                        skip(parser);
-                    }
-                }
-            } catch (Exception e) {
-                Log.e(LOG, e.getMessage());
-            }
-        }
-
-        private GpxTrackPoint readTrackPoint(XmlPullParser parser) {
-            // TODO Auto-generated method stub
-            return null;
-        }
-
-        private void skip(XmlPullParser parser) throws XmlPullParserException, IOException {
-            if (parser.getEventType() != XmlPullParser.START_TAG) {
-                throw new IllegalStateException();
-            }
-            int depth = 1;
-            while (depth != 0) {
-                switch (parser.next()) {
-                case XmlPullParser.END_TAG:
-                    depth--;
-                    break;
-                case XmlPullParser.START_TAG:
-                    depth++;
-                    break;
-                }
-            }
         }
 
         @Override
         protected void onProgressUpdate(Integer... progress) {
             switch (progress[0]) {
-            case 1:
-                broadcastStatus(GpsPlaybackBroadcastReceiver.Status.fileLoadfinished);
-                break;
+                case 1:
+                    broadcastStatus(GpsPlaybackBroadcastReceiver.Status.fileLoadfinished);
+                    break;
             }
-
         }
-
     }
 
+    @Override
+    public void onGpxRoute(GpxTrackSegments items) {
+        Log.i(PlaybackService.LOG, "Got " + items.getTrackSegments().size() + " track segment items.");
+    }
 }

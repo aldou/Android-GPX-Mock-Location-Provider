@@ -19,68 +19,67 @@ import java.util.LinkedList;
 
 public class SendLocationWorkerQueue {
 
-	private LinkedList<SendLocationWorker> queue;
-	private boolean running;
-	private WorkerThread thread;
+    private LinkedList<SendLocationWorker> queue;
+    private boolean running;
+    private final WorkerThread thread;
 
-	private Object lock = new Object();
+    private final Object lock = new Object();
 
-	public SendLocationWorkerQueue() {
-		queue = new LinkedList<SendLocationWorker>();
-		thread = new WorkerThread();
-		running = false;
-	}
+    public SendLocationWorkerQueue() {
+        queue = new LinkedList<SendLocationWorker>();
+        thread = new WorkerThread();
+        running = false;
+    }
 
-	public void addToQueue(SendLocationWorker worker) {
-		synchronized (queue) {
-			queue.addLast(worker);
-		}
+    public void addToQueue(SendLocationWorker worker) {
+        synchronized (queue) {
+            queue.addLast(worker);
+        }
 
-	}
+    }
 
-	public synchronized void start() {
-		running = true;
-		thread.start();
-	}
+    public synchronized void start() {
+        running = true;
+        thread.start();
+    }
 
-	public synchronized void stop() {
-		/*
-		 * synchronized(lock){ lock.notify(); }
-		 */
-		running = false;
-	}
+    public synchronized void stop() {
+        /*
+         * synchronized(lock){ lock.notify(); }
+         */
+        running = false;
+    }
 
-	public void reset() {
-		stop();
-		queue = new LinkedList<SendLocationWorker>();
-	}
+    public void reset() {
+        stop();
+        queue = new LinkedList<SendLocationWorker>();
+    }
 
-	private class WorkerThread extends Thread {
+    private class WorkerThread extends Thread {
 
-		public void run() {
-			while (running) {
+        @Override
+        public void run() {
+            while (running) {
 
-				if (queue.size() > 0) {
-					long timeUntilNext = queue.peek().getSendTime()
-							- System.currentTimeMillis();
+                if (queue.size() > 0) {
+                    long timeUntilNext = queue.peek().getSendTime() - System.currentTimeMillis();
 
-					if (timeUntilNext < 10) {
-						SendLocationWorker worker = queue.poll();
-						if (worker != null)
-							worker.run();
-					} else {
-						synchronized (lock) {
-							try {
-								lock.wait(timeUntilNext);
-							} catch (InterruptedException e) {
-								e.printStackTrace();
-							}
-						}
-					}
-				}
-			}
-		}
-
-	}
-
+                    if (timeUntilNext < 10) {
+                        SendLocationWorker worker = queue.poll();
+                        if (worker != null) {
+                            worker.run();
+                        }
+                    } else {
+                        synchronized (lock) {
+                            try {
+                                lock.wait(timeUntilNext);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

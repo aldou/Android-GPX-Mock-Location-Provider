@@ -18,59 +18,58 @@ package com.twolinessoftware.android;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-
-import com.twolinessoftware.android.framework.util.Logger;
+import android.util.Log;
 
 public class GpsPlaybackBroadcastReceiver extends BroadcastReceiver {
 
-	public static final String INTENT_BROADCAST = "com.twolinessoftware.android.GPS_STATE";
+    public static final String INTENT_BROADCAST = "com.twolinessoftware.android.GPS_STATE";
 
-	public static final String INTENT_STATUS = "gpsplaybackstatus";
+    public static final String INTENT_STATUS = "gpsplaybackstatus";
 
-	public static final String INTENT_STATE = "gpsplaybackstate";
+    public static final String INTENT_STATE = "gpsplaybackstate";
 
-	public static final String INTENT_ERROR = "gpsplaybackstateerror";
+    public static final String INTENT_ERROR = "gpsplaybackstateerror";
 
-	private static final String LOGNAME = "GpsPlaybackBroadcastReceiver";
+    private static final String LOGNAME = "GpsPlaybackBroadcastReceiver";
 
-	public static enum Status {
-		fileLoadStarted, fileLoadfinished, statusChange, fileError;
-	}
+    public static enum Status {
+        fileLoadStarted, fileLoadfinished, statusChange, fileError;
+    }
 
-	private GpsPlaybackListener listener;
+    private final GpsPlaybackListener listener;
 
-	public GpsPlaybackBroadcastReceiver(GpsPlaybackListener _listener) {
-		listener = _listener;
-	}
+    public GpsPlaybackBroadcastReceiver(GpsPlaybackListener _listener) {
+        listener = _listener;
+    }
 
-	@Override
-	public void onReceive(Context context, Intent intent) {
+    @Override
+    public void onReceive(Context context, Intent intent) {
 
-		String status = intent.getStringExtra(INTENT_STATUS);
-		int state = intent.getIntExtra(INTENT_STATE, -1);
-		String error = intent.getStringExtra(INTENT_ERROR);
+        String status = intent.getStringExtra(GpsPlaybackBroadcastReceiver.INTENT_STATUS);
+        int state = intent.getIntExtra(GpsPlaybackBroadcastReceiver.INTENT_STATE, -1);
+        String error = intent.getStringExtra(GpsPlaybackBroadcastReceiver.INTENT_ERROR);
 
-		Logger.d(LOGNAME, "Sending Status Update:" + status);
+        Log.d(GpsPlaybackBroadcastReceiver.LOGNAME, "Sending Status Update:" + status);
 
-		if (listener != null) {
-			switch (Status.valueOf(status)) {
-			case fileLoadStarted:
-				listener.onFileLoadStarted();
-				break;
-			case fileLoadfinished:
-				listener.onFileLoadFinished();
-				break;
-			case statusChange:
-				listener.onStatusChange(state);
-				break;
-			case fileError:
-				listener.onFileError(error);
-				break;
-			default:
-				Logger.e(LOGNAME, "Unknown status in receiver:" + status);
-			}
-		}
+        if (listener != null) {
+            switch (Status.valueOf(status)) {
+                case fileLoadStarted:
+                    listener.onFileLoadStarted();
+                    break;
+                case fileLoadfinished:
+                    listener.onFileLoadFinished();
+                    break;
+                case statusChange:
+                    listener.onStatusChange(state);
+                    break;
+                case fileError:
+                    listener.onFileError(error);
+                    break;
+                default:
+                    Log.e(GpsPlaybackBroadcastReceiver.LOGNAME, "Unknown status in receiver:" + status);
+            }
+        }
 
-	}
+    }
 
 }

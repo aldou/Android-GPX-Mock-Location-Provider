@@ -4,9 +4,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,70 +16,97 @@
 package com.twolinessoftware.android.framework.service.comms.gpx;
 
 import java.io.Serializable;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import android.util.Log;
 
-import com.twolinessoftware.android.MainActivity;
-
 public class GpxTrackPoint implements Serializable {
 
-	private static final long serialVersionUID = -4894963006110633397L;
-	private float ele;
-	private String time;
-	private String fix;
-	private String sat;
-	private double lat;
-	private double lon;
+    private static final long serialVersionUID = -4894963006110633397L;
+    private double ele;
+    private Date time = new Date(0);
+    private String fix;
+    private String sat;
+    private double lat;
+    private double lon;
+    private double course;
+    private double speed;
+    private final String preciseTemplate = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
+    private final String impreciseTemplate = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
-	public float getEle() {
-		return ele;
-	}
+    public double getCourse() {
+        return course;
+    }
 
-	public void setEle(float ele) {
-		this.ele = ele;
-	}
+    public void setCourse(double course) {
+        this.course = course;
+    }
 
-	public String getTime() {
-		return time;
-	}
+    public double getSpeed() {
+        return speed;
+    }
 
-	public void setTime(String time) {
-	    if(time.length()<10) {
-	        Log.e("GPXTrackPoint", "TRAP!");
-	    }
-		this.time = time;
-	}
+    public void setSpeed(double speed) {
+        this.speed = speed;
+    }
 
-	public String getFix() {
-		return fix;
-	}
+    public double getEle() {
+        return ele;
+    }
 
-	public void setFix(String fix) {
-		this.fix = fix;
-	}
+    public void setEle(double ele) {
+        this.ele = ele;
+    }
 
-	public String getSat() {
-		return sat;
-	}
+    public Date getTime() {
+        return time;
+    }
 
-	public void setSat(String sat) {
-		this.sat = sat;
-	}
+    public void setTime(String timeString) {
+        SimpleDateFormat format = null;
+        if (timeString.length() < (preciseTemplate.length() - 4)) {
+            format = new SimpleDateFormat(impreciseTemplate);
+        } else {
+            format = new SimpleDateFormat(preciseTemplate);
+        }
+        try {
+            time = format.parse(timeString);
+        } catch (ParseException e) {
+            Log.e("GpxTrackPoint", e.getMessage());
+        }
+    }
 
-	public double getLat() {
-		return lat;
-	}
+    public String getFix() {
+        return fix;
+    }
 
-	public void setLat(double lat) {
-		this.lat = lat;
-	}
+    public void setFix(String fix) {
+        this.fix = fix;
+    }
 
-	public double getLon() {
-		return lon;
-	}
+    public String getSat() {
+        return sat;
+    }
 
-	public void setLon(double lon) {
-		this.lon = lon;
-	}
+    public void setSat(String sat) {
+        this.sat = sat;
+    }
 
+    public double getLat() {
+        return lat;
+    }
+
+    public void setLat(double lat) {
+        this.lat = lat;
+    }
+
+    public double getLon() {
+        return lon;
+    }
+
+    public void setLon(double lon) {
+        this.lon = lon;
+    }
 }

@@ -15,14 +15,12 @@
  */
 package com.twolinessoftware.android.framework.service.comms.gpx;
 
-public interface GpxSaxParserListener {
+public interface GpxPullParserListener extends GpxParserListener {
 
-	void onGpxPoint(GpxTrackPoint item);
+    void onGpxPoint(GpxTrackPoint item);
 
-	void onGpxError(String message);
+    void onGpxStart();
 
-	void onGpxStart();
-
-	void onGpxEnd();
+    void onGpxEnd(int trackPointCount);
 
 }
