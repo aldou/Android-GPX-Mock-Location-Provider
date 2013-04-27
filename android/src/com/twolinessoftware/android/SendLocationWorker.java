@@ -24,6 +24,7 @@ import com.twolinessoftware.android.framework.service.comms.gpx.GpxTrackPoint;
 
 public class SendLocationWorker extends Worker {
 
+    private static final float FAKE_ACCURACY = 5;
     private final GpxTrackPoint point;
     private final String providerName;
     private final LocationManager mLocationManager;
@@ -48,14 +49,17 @@ public class SendLocationWorker extends Worker {
 
     @Override
     public void run() {
-        sendLocation(point.getLat(), point.getLon());
+        sendLocation(point);
     }
 
-    private void sendLocation(final double latitude, final double longitude) {
+    private void sendLocation(final GpxTrackPoint point) {
         Location loc = new Location(providerName);
-        loc.setLatitude(latitude);
-        loc.setLongitude(longitude);
+        loc.setLatitude(point.getLat());
+        loc.setLongitude(point.getLon());
+        loc.setBearing((float) point.getCourse());
+        loc.setSpeed((float) point.getSpeed());
         loc.setTime(sendTime);
+        loc.setAccuracy(FAKE_ACCURACY);
         Log.d("SendLocation", "Sending update for " + providerName);
         mLocationManager.setTestProviderLocation(providerName, loc);
     }

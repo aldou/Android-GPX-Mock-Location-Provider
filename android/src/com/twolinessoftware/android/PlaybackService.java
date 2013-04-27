@@ -59,7 +59,7 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     public static final int RUNNING = 0;
     public static final int STOPPED = 1;
 
-    private static final String PROVIDER_NAME = "mockgps"; // LocationManager.GPS_PROVIDER;
+    private static final String PROVIDER_NAME = LocationManager.GPS_PROVIDER;
 
     private final IPlaybackService.Stub mBinder = new IPlaybackService.Stub() {
 
@@ -195,6 +195,13 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     }
 
     private void setupTestProvider() {
+        try {
+            mLocationManager.removeTestProvider(PlaybackService.PROVIDER_NAME);
+        } catch (SecurityException e) {
+            Log.e(LOG, "Manifest.ACCESS_MOCK_LOCATION or Settings.Secure.ALLOW_MOCK_LOCATION not enabled:" + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            Log.e(LOG, "No provider with the given name exists: " + e.getMessage());
+        }
         mLocationManager.addTestProvider(PlaybackService.PROVIDER_NAME, true, // requiresNetwork,
                 false, // requiresSatellite,
                 true, // requiresCell,
@@ -359,9 +366,9 @@ public class PlaybackService extends Service implements GpxPullParserListener {
         @Override
         protected void onProgressUpdate(Integer... progress) {
             switch (progress[0]) {
-                case 1:
-                    broadcastStatus(GpsPlaybackBroadcastReceiver.Status.fileLoadfinished);
-                    break;
+            case 1:
+                broadcastStatus(GpsPlaybackBroadcastReceiver.Status.fileLoadfinished);
+                break;
             }
         }
     }
