@@ -36,7 +36,8 @@ import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity implements GpsPlaybackListener {
@@ -49,7 +50,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
 
     private ServiceConnection connection;
     private IPlaybackService service;
-    private EditText mEditText;
+    private TextView textView;
 
     private String filepath;
 
@@ -58,6 +59,8 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
     private int state;
 
     private ProgressDialog progressDialog;
+
+    private int progressPercentage;
 
     /** Called when the activity is first created. */
     @Override
@@ -72,11 +75,11 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
             finish();
         }
 
-        mEditText = (EditText) findViewById(R.id.file_path);
+        textView = (TextView) findViewById(R.id.file_path);
         SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
         filepath = settings.getString(MainActivity.LAST_FILE, "");
         Log.i(MainActivity.LOGNAME, "Loaded file preference: " + filepath);
-        mEditText.setText(filepath);
+        textView.setText(filepath);
     }
 
     @Override
@@ -172,7 +175,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
      * Opens the file manager to select a file to open.
      */
     public void openFile() {
-        String fileName = mEditText.getText().toString();
+        String fileName = textView.getText().toString();
 
         Intent intent = new Intent(FileManagerIntents.ACTION_PICK_FILE);
 
@@ -227,6 +230,8 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
             public void run() {
                 Button start = (Button) findViewById(R.id.start);
                 Button stop = (Button) findViewById(R.id.stop);
+                ProgressBar progressBar = (ProgressBar) findViewById(R.id.progressBar);
+                progressBar.setProgress(progressPercentage);
 
                 switch (state) {
                     case PlaybackService.RUNNING:
@@ -276,7 +281,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
                     if (fileUri != null) {
                         String filePath = fileUri.getPath();
                         if (filePath != null) {
-                            mEditText.setText(filePath);
+                            textView.setText(filePath);
                             filepath = filePath;
 
                             // Save selected file for future reference.
@@ -315,4 +320,9 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         hideProgressDialog();
     }
 
+    @Override
+    public void onProgress(int pct) {
+        progressPercentage = pct;
+        updateUi();
+    }
 }

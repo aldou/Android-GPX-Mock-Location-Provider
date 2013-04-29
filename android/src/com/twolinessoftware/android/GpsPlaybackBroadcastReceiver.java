@@ -4,9 +4,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -26,6 +26,8 @@ public class GpsPlaybackBroadcastReceiver extends BroadcastReceiver {
 
     public static final String INTENT_STATUS = "gpsplaybackstatus";
 
+    public static final String INTENT_PROGRESS = "gpsplaybackprogress";
+
     public static final String INTENT_STATE = "gpsplaybackstate";
 
     public static final String INTENT_ERROR = "gpsplaybackstateerror";
@@ -33,7 +35,7 @@ public class GpsPlaybackBroadcastReceiver extends BroadcastReceiver {
     private static final String LOGNAME = "GpsPlaybackBroadcastReceiver";
 
     public static enum Status {
-        fileLoadStarted, fileLoadfinished, statusChange, fileError;
+        fileLoadStarted, fileLoadfinished, statusChange, fileError, playbackProgress;
     }
 
     private final GpsPlaybackListener listener;
@@ -51,7 +53,7 @@ public class GpsPlaybackBroadcastReceiver extends BroadcastReceiver {
 
         Log.d(GpsPlaybackBroadcastReceiver.LOGNAME, "Sending Status Update:" + status);
 
-        if (listener != null) {
+        if ((listener != null) && (status != null)) {
             switch (Status.valueOf(status)) {
                 case fileLoadStarted:
                     listener.onFileLoadStarted();
@@ -65,11 +67,13 @@ public class GpsPlaybackBroadcastReceiver extends BroadcastReceiver {
                 case fileError:
                     listener.onFileError(error);
                     break;
+                case playbackProgress:
+                    listener.onProgress(state);
+                    break;
                 default:
                     Log.e(GpsPlaybackBroadcastReceiver.LOGNAME, "Unknown status in receiver:" + status);
             }
         }
 
     }
-
 }
