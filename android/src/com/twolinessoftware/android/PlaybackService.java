@@ -15,13 +15,13 @@
  */
 package com.twolinessoftware.android;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.InputStreamReader;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -44,6 +44,9 @@ import com.twolinessoftware.android.framework.service.comms.gpx.GpxTrackSegments
 
 public class PlaybackService extends Service implements GpxPullParserListener {
 
+    private Integer workerIndex = 0;
+    private static Timer ticker = new Timer();
+
     private NotificationManager mNM;
 
     private static final String LOG = PlaybackService.class.getSimpleName();
@@ -60,6 +63,7 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     public static final int STOPPED = 1;
 
     private static final String PROVIDER_NAME = LocationManager.GPS_PROVIDER;
+    private static final int SAMPLES_IN_MINUTES = 60;
 
     private final IPlaybackService.Stub mBinder = new IPlaybackService.Stub() {
 
@@ -70,10 +74,13 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
             loadGpxFile(file);
 
+            PlaybackService.ticker.scheduleAtFixedRate(new tickerTask(), 1000, 1000);
         }
 
         @Override
         public void stopService() throws RemoteException {
+            PlaybackService.ticker.cancel();
+
             mLocationManager.removeTestProvider(PlaybackService.PROVIDER_NAME);
 
             queue.reset();
@@ -92,6 +99,15 @@ public class PlaybackService extends Service implements GpxPullParserListener {
             return state;
         }
 
+        @Override
+        public void jump(int i) throws RemoteException {
+            int count = pointList.size();
+            int newIndex = ((workerIndex + (PlaybackService.SAMPLES_IN_MINUTES * i)) % count);
+            if (newIndex < 0) {
+                newIndex = count + newIndex;
+            }
+            setWorkerIndex(newIndex);
+        }
     };
 
     private LocationManager mLocationManager;
@@ -99,6 +115,7 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     private long startTimeOffset;
 
     private long firstGpsTime;
+    private long lastGpsTime;
 
     private int state;
 
@@ -124,7 +141,23 @@ public class PlaybackService extends Service implements GpxPullParserListener {
         broadcastStateChange(PlaybackService.STOPPED);
 
         setupTestProvider();
+    }
 
+    class tickerTask extends TimerTask {
+
+        @Override
+        public void run() {
+            if (!pointList.isEmpty()) {
+                Log.i(PlaybackService.LOG, "Would send point #" + workerIndex + ".");
+                setWorkerIndex(workerIndex + 1);
+            }
+        }
+    }
+
+    public void setWorkerIndex(int newIndex) {
+        synchronized (workerIndex) {
+            workerIndex = newIndex;
+        }
     }
 
     @Override
@@ -139,8 +172,8 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
     @Override
     public void onDestroy() {
+        PlaybackService.ticker.cancel();
         Log.d(PlaybackService.LOG, "Stopping Playback Service");
-
     }
 
     private void cancelExistingTaskIfNecessary() {
@@ -170,10 +203,17 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
     }
 
-    private void queueGpxPositions(String xml) {
-        // GpxSaxParser parser = new GpxSaxParser(this);
+    private void queueGpxPositions(String filename) {
         GpxPullParser parser = new GpxPullParser(this);
-        parser.parse(xml);
+        File f = new File(filename);
+        FileInputStream fileIS = null;
+        try {
+            fileIS = new FileInputStream(f);
+        } catch (FileNotFoundException e) {
+            Log.e(PlaybackService.LOG, filename + " not found!");
+            showNotification(filename + " not found!");
+        }
+        parser.parse(fileIS);
     }
 
     private void onGpsPlaybackStopped() {
@@ -197,29 +237,33 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     private void setupTestProvider() {
         try {
             mLocationManager.removeTestProvider(PlaybackService.PROVIDER_NAME);
+            mLocationManager.addTestProvider(PlaybackService.PROVIDER_NAME, true, // requiresNetwork,
+                    false, // requiresSatellite,
+                    true, // requiresCell,
+                    false, // hasMonetaryCost,
+                    false, // supportsAltitude,
+                    false, // supportsSpeed,
+                    false, // supportsBearing,
+                    Criteria.POWER_MEDIUM, // powerRequirement
+                    Criteria.ACCURACY_FINE); // accuracy
         } catch (SecurityException e) {
-            Log.e(LOG, "Manifest.ACCESS_MOCK_LOCATION or Settings.Secure.ALLOW_MOCK_LOCATION not enabled:" + e.getMessage());
+            Log.e(PlaybackService.LOG, "Manifest.ACCESS_MOCK_LOCATION or Settings.Secure.ALLOW_MOCK_LOCATION not enabled:" + e.getMessage());
         } catch (IllegalArgumentException e) {
-            Log.e(LOG, "No provider with the given name exists: " + e.getMessage());
+            Log.e(PlaybackService.LOG, "No provider with the given name exists: " + e.getMessage());
         }
-        mLocationManager.addTestProvider(PlaybackService.PROVIDER_NAME, true, // requiresNetwork,
-                false, // requiresSatellite,
-                true, // requiresCell,
-                false, // hasMonetaryCost,
-                false, // supportsAltitude,
-                false, // supportsSpeed,
-                false, // supportsBearing,
-                Criteria.POWER_MEDIUM, // powerRequirement
-                Criteria.ACCURACY_FINE); // accuracy
+    }
+
+    // Default version.
+    private void showNotification() {
+        showNotification("GPX Playback Running");
     }
 
     /**
      * Show a notification while this service is running.
      */
-    private void showNotification() {
+    private void showNotification(String text) {
         // In this sample, we'll use the same text for the ticker and the
         // expanded notification
-        CharSequence text = "GPX Playback Running";
 
         // The PendingIntent to launch our activity if the user selects this
         // notification
@@ -231,33 +275,6 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
         // Send the notification.
         mNM.notify(PlaybackService.NOTIFICATION, notification);
-    }
-
-    private String loadFile(String file) {
-        try {
-            File f = new File(file);
-
-            FileInputStream fileIS = new FileInputStream(f);
-
-            BufferedReader buf = new BufferedReader(new InputStreamReader(fileIS));
-
-            String readString = new String();
-
-            StringBuffer xml = new StringBuffer();
-            while ((readString = buf.readLine()) != null) {
-                xml.append(readString);
-            }
-
-            Log.d(PlaybackService.LOG, "Finished reading in file");
-
-            buf.close();
-            return xml.toString();
-
-        } catch (Exception e) {
-            broadcastError("Error in the GPX file, unable to read it");
-        }
-
-        return null;
     }
 
     @Override
@@ -273,12 +290,14 @@ public class PlaybackService extends Service implements GpxPullParserListener {
         long gpsPointTime = 0;
 
         // Calculate the delay
-        if (item.getTime().getTime() != 0) {
-            Date gpsDate = item.getTime();
-            gpsPointTime = gpsDate.getTime();
+        if (item.getTime() != 0) {
+            gpsPointTime = item.getTime();
 
             if (firstGpsTime == 0) {
                 firstGpsTime = gpsPointTime;
+            }
+            if (gpsPointTime > lastGpsTime) {
+                lastGpsTime = gpsPointTime;
             }
 
             if (startTimeOffset == 0) {
@@ -307,8 +326,8 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     }
 
     @Override
-    public void onGpxEnd(int trackPointCount) {
-        Log.i(PlaybackService.LOG, "GPX ended with " + trackPointCount + " points parsed.");
+    public void onGpxEnd() {
+        Log.i(PlaybackService.LOG, "GPX ended with " + pointList.size() + " points parsed.");
     }
 
     private void broadcastStatus(GpsPlaybackBroadcastReceiver.Status status) {
@@ -351,14 +370,14 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
             // Reset the existing values
             firstGpsTime = 0;
-
+            lastGpsTime = 0;
             startTimeOffset = 0;
 
-            String xml = loadFile(file);
+            // String xml = loadFile(file);
 
             publishProgress(1);
 
-            queueGpxPositions(xml);
+            queueGpxPositions(file);
 
             return null;
         }
@@ -366,9 +385,9 @@ public class PlaybackService extends Service implements GpxPullParserListener {
         @Override
         protected void onProgressUpdate(Integer... progress) {
             switch (progress[0]) {
-            case 1:
-                broadcastStatus(GpsPlaybackBroadcastReceiver.Status.fileLoadfinished);
-                break;
+                case 1:
+                    broadcastStatus(GpsPlaybackBroadcastReceiver.Status.fileLoadfinished);
+                    break;
             }
         }
     }

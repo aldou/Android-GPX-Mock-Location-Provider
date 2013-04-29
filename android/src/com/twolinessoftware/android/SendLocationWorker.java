@@ -47,6 +47,10 @@ public class SendLocationWorker extends Worker {
         sendTime = localSendTime;
     }
 
+    GpxTrackPoint getPoint() {
+        return point;
+    }
+
     @Override
     public void run() {
         sendLocation(point);
@@ -59,7 +63,7 @@ public class SendLocationWorker extends Worker {
         loc.setBearing((float) point.getCourse());
         loc.setSpeed((float) point.getSpeed());
         loc.setTime(sendTime);
-        loc.setAccuracy(FAKE_ACCURACY);
+        loc.setAccuracy(SendLocationWorker.FAKE_ACCURACY);
         Log.d("SendLocation", "Sending update for " + providerName);
         mLocationManager.setTestProviderLocation(providerName, loc);
     }

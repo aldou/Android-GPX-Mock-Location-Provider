@@ -15,10 +15,13 @@
  */
 package com.twolinessoftware.android.framework.service.comms.gpx;
 
+import java.io.FileInputStream;
+
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import android.util.Log;
+import android.util.Xml;
 
 import com.twolinessoftware.android.framework.service.comms.Parser;
 
@@ -35,23 +38,23 @@ public class GpxPullParser extends Parser {
     }
 
     @Override
-    public void parse(String xml) {
-        XmlPullParser xpp = null;
+    public void parse(FileInputStream fIS) {
+        XmlPullParser xpp = Xml.newPullParser();
         try {
-            xpp = buildXmlParser(xml);
+            xpp.setInput(fIS, null);
         } catch (XmlPullParserException e) {
-            Log.e(LOGTAG, "Parser building failed: " + e.getMessage());
+            Log.e(LOGTAG, "Failed to set input: " + e.getMessage());
             listener.onGpxError(e.getMessage());
             return;
         }
         boolean keepGoing = true;
-        int trackPointCount = 0;
+        long start = System.currentTimeMillis();
+        Log.i(LOGTAG, "'START_DOCUMENT', i.e. entering processing loop.");
         while (keepGoing) {
             try {
                 switch (xpp.next()) {
                     case XmlPullParser.START_TAG:
                         if (xpp.getName().equalsIgnoreCase(trackPoint)) {
-                            trackPointCount++;
                             GpxTrackPoint point = parseTrackPoint(xpp);
                             if (point != null) {
                                 listener.onGpxPoint(point);
@@ -62,7 +65,8 @@ public class GpxPullParser extends Parser {
                         listener.onGpxStart();
                         break;
                     case XmlPullParser.END_DOCUMENT:
-                        listener.onGpxEnd(trackPointCount);
+                        Log.i(LOGTAG, "@END_DOCUMENT after " + (System.currentTimeMillis() - start) + " ms.");
+                        listener.onGpxEnd();
                         keepGoing = false;
                         break;
                 }
@@ -150,5 +154,10 @@ public class GpxPullParser extends Parser {
             }
         }
         return point;
+    }
+
+    @Override
+    public void parse(String xml) {
+        // TODO: deprecated
     }
 }

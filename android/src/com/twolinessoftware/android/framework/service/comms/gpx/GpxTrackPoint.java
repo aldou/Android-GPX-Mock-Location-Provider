@@ -18,7 +18,6 @@ package com.twolinessoftware.android.framework.service.comms.gpx;
 import java.io.Serializable;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 
 import android.util.Log;
 
@@ -26,7 +25,7 @@ public class GpxTrackPoint implements Serializable {
 
     private static final long serialVersionUID = -4894963006110633397L;
     private double ele;
-    private Date time = new Date(0);
+    private long time;
     private String fix;
     private String sat;
     private double lat;
@@ -60,8 +59,12 @@ public class GpxTrackPoint implements Serializable {
         this.ele = ele;
     }
 
-    public Date getTime() {
+    public long getTime() {
         return time;
+    }
+
+    public void setTime(long newTime) {
+        time = newTime;
     }
 
     public void setTime(String timeString) {
@@ -72,9 +75,10 @@ public class GpxTrackPoint implements Serializable {
             format = new SimpleDateFormat(preciseTemplate);
         }
         try {
-            time = format.parse(timeString);
+            time = format.parse(timeString).getTime();
         } catch (ParseException e) {
             Log.e("GpxTrackPoint", e.getMessage());
+            time = System.currentTimeMillis();
         }
     }
 

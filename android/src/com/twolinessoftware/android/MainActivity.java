@@ -4,9 +4,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -145,19 +145,27 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
     }
 
     public void onBackTen(View view) {
-        Log.i(MainActivity.LOGNAME, "Would jump back ten minutes.");
+        serviceJump(-10);
     }
 
     public void onBackOne(View view) {
-        Log.i(MainActivity.LOGNAME, "Would jump back one minute.");
+        serviceJump(-1);
     }
 
     public void onForwardOne(View view) {
-        Log.i(MainActivity.LOGNAME, "Would jump forward one minute.");
+        serviceJump(1);
     }
 
     public void onForwardTen(View view) {
-        Log.i(MainActivity.LOGNAME, "Would jump forward ten minutes.");
+        serviceJump(10);
+    }
+
+    private void serviceJump(int i) {
+        try {
+            service.jump(i);
+        } catch (RemoteException e) {
+            Log.e(MainActivity.LOGNAME, e.getMessage());
+        }
     }
 
     /**
@@ -221,14 +229,14 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
                 Button stop = (Button) findViewById(R.id.stop);
 
                 switch (state) {
-                case PlaybackService.RUNNING:
-                    start.setEnabled(false);
-                    stop.setEnabled(true);
-                    break;
-                case PlaybackService.STOPPED:
-                    start.setEnabled(true);
-                    stop.setEnabled(false);
-                    break;
+                    case PlaybackService.RUNNING:
+                        start.setEnabled(false);
+                        stop.setEnabled(true);
+                        break;
+                    case PlaybackService.STOPPED:
+                        start.setEnabled(true);
+                        stop.setEnabled(false);
+                        break;
                 }
             }
         });
@@ -261,26 +269,26 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         super.onActivityResult(requestCode, resultCode, data);
 
         switch (requestCode) {
-        case REQUEST_FILE:
-            if ((resultCode == Activity.RESULT_OK) && (data != null)) {
-                // obtain the filename
-                Uri fileUri = data.getData();
-                if (fileUri != null) {
-                    String filePath = fileUri.getPath();
-                    if (filePath != null) {
-                        mEditText.setText(filePath);
-                        filepath = filePath;
+            case REQUEST_FILE:
+                if ((resultCode == Activity.RESULT_OK) && (data != null)) {
+                    // obtain the filename
+                    Uri fileUri = data.getData();
+                    if (fileUri != null) {
+                        String filePath = fileUri.getPath();
+                        if (filePath != null) {
+                            mEditText.setText(filePath);
+                            filepath = filePath;
 
-                        // Save selected file for future reference.
-                        SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
-                        SharedPreferences.Editor editor = settings.edit();
-                        editor.putString(MainActivity.LAST_FILE, filePath);
-                        editor.commit();
-                        Log.i(MainActivity.LOGNAME, "Stored file preference: " + filePath);
+                            // Save selected file for future reference.
+                            SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
+                            SharedPreferences.Editor editor = settings.edit();
+                            editor.putString(MainActivity.LAST_FILE, filePath);
+                            editor.commit();
+                            Log.i(MainActivity.LOGNAME, "Stored file preference: " + filePath);
+                        }
                     }
                 }
-            }
-            break;
+                break;
         }
     }
 
