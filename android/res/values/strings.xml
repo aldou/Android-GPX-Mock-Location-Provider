@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">GPX Playback</string>
+    <string name="app_name">GPS Playback</string>
     <string name="no_filemanager_installed">No compatible file manager found</string>
     <string name="file_name">File name</string>
     <string name="open_title">Select file to open</string>
@@ -17,6 +17,6 @@
     <string name="forward_one">+1</string>
     <string name="forward_ten">+10</string>
     <string name="please_wait">Please Wait</string>
-    <string name="loading_file">Loading GPX File</string>
+    <string name="loading_file">Loading a GPS Recording</string>
 
 </resources>

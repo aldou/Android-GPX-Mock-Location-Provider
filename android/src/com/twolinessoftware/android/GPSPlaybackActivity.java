@@ -40,13 +40,13 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class MainActivity extends Activity implements GpsPlaybackListener {
+public class GPSPlaybackActivity extends Activity implements GpsPlaybackListener {
 
     public static final String LAST_FILE = "lastFile";
 
     private static final int REQUEST_FILE = 1;
 
-    private static final String LOGNAME = "SimulatedGPSProvider.MainActivity";
+    private static final String LOGTAG = GPSPlaybackActivity.class.getSimpleName();
 
     private ServiceConnection connection;
     private IPlaybackService service;
@@ -74,11 +74,10 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
             Toast.makeText(this, "MockLocations needs to be enabled", Toast.LENGTH_LONG).show();
             finish();
         }
-
         textView = (TextView) findViewById(R.id.file_path);
         SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
-        filepath = settings.getString(MainActivity.LAST_FILE, "");
-        Log.i(MainActivity.LOGNAME, "Loaded file preference: " + filepath);
+        filepath = settings.getString(GPSPlaybackActivity.LAST_FILE, "");
+        Log.i(GPSPlaybackActivity.LOGTAG, "Loaded file preference: " + filepath);
         textView.setText(filepath);
     }
 
@@ -167,7 +166,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         try {
             service.jump(i);
         } catch (RemoteException e) {
-            Log.e(MainActivity.LOGNAME, e.getMessage());
+            Log.e(GPSPlaybackActivity.LOGTAG, e.getMessage());
         }
     }
 
@@ -188,7 +187,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
         intent.putExtra(FileManagerIntents.EXTRA_BUTTON_TEXT, getString(R.string.open_button));
 
         try {
-            startActivityForResult(intent, MainActivity.REQUEST_FILE);
+            startActivityForResult(intent, GPSPlaybackActivity.REQUEST_FILE);
         } catch (ActivityNotFoundException e) {
             // No compatible file manager was found.
             Toast.makeText(this, R.string.no_filemanager_installed, Toast.LENGTH_LONG).show();
@@ -207,7 +206,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
                 service.startService(filepath);
             }
         } catch (RemoteException e) {
-            Log.e(MainActivity.LOGNAME, e.getMessage());
+            Log.e(GPSPlaybackActivity.LOGTAG, e.getMessage());
         }
 
         Intent i = new Intent(getApplicationContext(), PlaybackService.class);
@@ -220,7 +219,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
                 service.stopService();
             }
         } catch (RemoteException e) {
-            Log.e(MainActivity.LOGNAME, e.getMessage());
+            Log.e(GPSPlaybackActivity.LOGTAG, e.getMessage());
         }
     }
 
@@ -255,7 +254,7 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
             try {
                 state = service.getState();
             } catch (RemoteException e) {
-                Log.e(MainActivity.LOGNAME, "Unable to access state:" + e.getMessage());
+                Log.e(GPSPlaybackActivity.LOGTAG, "Unable to access state:" + e.getMessage());
             }
             updateUi();
         }
@@ -287,9 +286,9 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
                             // Save selected file for future reference.
                             SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
                             SharedPreferences.Editor editor = settings.edit();
-                            editor.putString(MainActivity.LAST_FILE, filePath);
+                            editor.putString(GPSPlaybackActivity.LAST_FILE, filePath);
                             editor.commit();
-                            Log.i(MainActivity.LOGNAME, "Stored file preference: " + filePath);
+                            Log.i(GPSPlaybackActivity.LOGTAG, "Stored file preference: " + filePath);
                         }
                     }
                 }
@@ -299,13 +298,13 @@ public class MainActivity extends Activity implements GpsPlaybackListener {
 
     @Override
     public void onFileLoadStarted() {
-        Log.d(MainActivity.LOGNAME, "File loading started");
+        Log.d(GPSPlaybackActivity.LOGTAG, "File loading started");
         showProgressDialog();
     }
 
     @Override
     public void onFileLoadFinished() {
-        Log.d(MainActivity.LOGNAME, "File loading finished");
+        Log.d(GPSPlaybackActivity.LOGTAG, "File loading finished");
         hideProgressDialog();
     }
 

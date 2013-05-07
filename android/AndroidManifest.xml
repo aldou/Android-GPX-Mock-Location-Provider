@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.twolinessoftware.android"
     android:versionCode="1"
-    android:versionName="1.0" >
+    android:versionName="13.5.7.1320" >
 
     <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION" >
     </uses-permission>
@@ -17,7 +17,7 @@
         android:icon="@drawable/icon"
         android:label="@string/app_name" >
         <activity
-            android:name=".MainActivity"
+            android:name=".GPSPlaybackActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

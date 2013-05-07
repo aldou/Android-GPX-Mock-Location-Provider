@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.twolinessoftware.android.framework.service.comms.gpx;
+package com.twolinessoftware.android.framework.service.comms.gps;
 
 import java.io.FileInputStream;
 
@@ -26,7 +26,7 @@ import android.util.Xml;
 import com.twolinessoftware.android.framework.service.comms.Parser;
 
 public class GpxPullParser extends Parser {
-    private final String LOGTAG = "GpxPullParser";
+    private final String LOGTAG = GpxPullParser.class.getSimpleName();
     private final GpxPullParserListener listener;
     private final String trackPoint = "trkpt";
 
@@ -158,6 +158,6 @@ public class GpxPullParser extends Parser {
 
     @Override
     public void parse(String xml) {
-        // TODO: deprecated
+        throw new UnsupportedOperationException("String parsing is not supported in GpxPullParser!");
     }
 }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.twolinessoftware.android.framework.service.comms.gpx;
+package com.twolinessoftware.android.framework.service.comms.gps;
 
 import java.io.Serializable;
 import java.util.ArrayList;

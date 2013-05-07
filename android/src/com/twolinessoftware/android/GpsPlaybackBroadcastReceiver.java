@@ -32,7 +32,7 @@ public class GpsPlaybackBroadcastReceiver extends BroadcastReceiver {
 
     public static final String INTENT_ERROR = "gpsplaybackstateerror";
 
-    private static final String LOGNAME = "GpsPlaybackBroadcastReceiver";
+    private static final String LOGTAG = GpsPlaybackBroadcastReceiver.class.getSimpleName();
 
     public static enum Status {
         fileLoadStarted, fileLoadfinished, statusChange, fileError, playbackProgress;
@@ -51,7 +51,7 @@ public class GpsPlaybackBroadcastReceiver extends BroadcastReceiver {
         int state = intent.getIntExtra(GpsPlaybackBroadcastReceiver.INTENT_STATE, -1);
         String error = intent.getStringExtra(GpsPlaybackBroadcastReceiver.INTENT_ERROR);
 
-        Log.d(GpsPlaybackBroadcastReceiver.LOGNAME, "Sending Status Update:" + status);
+        Log.d(GpsPlaybackBroadcastReceiver.LOGTAG, "Sending Status Update:" + status);
 
         if ((listener != null) && (status != null)) {
             switch (Status.valueOf(status)) {
@@ -71,7 +71,7 @@ public class GpsPlaybackBroadcastReceiver extends BroadcastReceiver {
                     listener.onProgress(state);
                     break;
                 default:
-                    Log.e(GpsPlaybackBroadcastReceiver.LOGNAME, "Unknown status in receiver:" + status);
+                    Log.e(GpsPlaybackBroadcastReceiver.LOGTAG, "Unknown status in receiver:" + status);
             }
         }
 

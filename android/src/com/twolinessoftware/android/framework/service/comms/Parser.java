@@ -21,51 +21,18 @@ import java.io.StringReader;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
-import android.util.Log;
 import android.util.Xml;
 
 public abstract class Parser {
-
-    private static final String LOGNAME = "Framework.Parser";
 
     public abstract void parse(String xml);
 
     protected XmlPullParser buildXmlParser(String xml) throws XmlPullParserException {
         XmlPullParser xpp = Xml.newPullParser();
-        xpp.setInput(new StringReader(xml));
+        if (!xml.isEmpty()) {
+            xpp.setInput(new StringReader(xml));
+        }
         return xpp;
-    }
-
-    protected String getNodesFromXml(String xml, String tag) {
-        String startTag = "<" + tag;
-        String endTag = "</" + tag + ">";
-
-        String response = null;
-
-        try {
-            response = xml.substring(xml.indexOf(startTag), xml.indexOf(endTag) + endTag.length());
-        } catch (StringIndexOutOfBoundsException se) {
-            Log.e(Parser.LOGNAME, "Parser:Invalid XML Tag:" + tag);
-        }
-
-        return response;
-
-    }
-
-    protected String getTextFromNode(String xml, String tag) {
-        String startTag = "<" + tag + ">";
-        String endTag = "</" + tag + ">";
-
-        String response = null;
-
-        try {
-            response = xml.substring(xml.indexOf(startTag) + startTag.length(), xml.indexOf(endTag));
-        } catch (StringIndexOutOfBoundsException se) {
-            Log.e(Parser.LOGNAME, "Parser:Invalid XML Tag:" + tag);
-        }
-
-        return response;
-
     }
 
     abstract public void parse(FileInputStream fIS);

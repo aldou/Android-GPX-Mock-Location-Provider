@@ -20,9 +20,14 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
+import net.sf.marineapi.nmea.event.SentenceEvent;
+import net.sf.marineapi.nmea.event.SentenceListener;
+import net.sf.marineapi.nmea.sentence.Sentence;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -38,52 +43,102 @@ import android.os.RemoteException;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
-import com.twolinessoftware.android.framework.service.comms.gpx.GpxPullParser;
-import com.twolinessoftware.android.framework.service.comms.gpx.GpxPullParserListener;
-import com.twolinessoftware.android.framework.service.comms.gpx.GpxTrackPoint;
-import com.twolinessoftware.android.framework.service.comms.gpx.GpxTrackSegments;
+import com.twolinessoftware.android.framework.service.comms.gps.GpxPullParser;
+import com.twolinessoftware.android.framework.service.comms.gps.GpxPullParserListener;
+import com.twolinessoftware.android.framework.service.comms.gps.GpxTrackPoint;
+import com.twolinessoftware.android.framework.service.comms.gps.GpxTrackSegments;
+import com.twolinessoftware.android.framework.service.comms.gps.NmeaParser;
 
-public class PlaybackService extends Service implements GpxPullParserListener {
+public class PlaybackService extends Service implements GpxPullParserListener, SentenceListener {
 
+    /**
+     * The list of GPS points to use in mocking location updates.
+     */
+    protected List<GpxTrackPoint> pointList = new ArrayList<GpxTrackPoint>();
+
+    /**
+     * Currently active point in pointList.
+     */
     private Integer workerIndex = 0;
-    private static Timer ticker = new Timer();
 
     private NotificationManager mNM;
 
+    /**
+     * A handle to a NMEA parser so that its parsing can be stopped when
+     * required.
+     */
+    private NmeaParser nmeaParser = null;
+
+    /**
+     * A bunch of constants.
+     */
     private static final String LOGTAG = PlaybackService.class.getSimpleName();
-
     private static final int NOTIFICATION = 1;
-
     public static final long UPDATE_LOCATION_WAIT_TIME = 1000;
-
-    protected List<GpxTrackPoint> pointList = new ArrayList<GpxTrackPoint>();
-
     public static final boolean CONTINUOUS = true;
-
     public static final int RUNNING = 0;
     public static final int STOPPED = 1;
-
     private static final String PROVIDER_NAME = LocationManager.GPS_PROVIDER;
     private static final int SAMPLES_IN_MINUTES = 60;
 
+    /**
+     * Member variables used in scheduling location updates.
+     */
+    private final ScheduledExecutorService scheduleTaskExecutor = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledFuture<?> tickerHandle = null;
+
+    /**
+     * Location manager is used to broadcast mock location updates.
+     */
+    private LocationManager mLocationManager;
+
+    /**
+     * Playback service state.
+     */
+    private int state;
+
+    /**
+     * File reader.
+     */
+    private ReadFileTask task;
+
+    /**
+     * When loadGpxFile is called, this variable is used to figure out if
+     * the active file has changed thus requiring a reset of workerIndex.
+     */
+    private String previousFilename = "";
+
+    /**
+     * Service stub.
+     */
     private final IPlaybackService.Stub mBinder = new IPlaybackService.Stub() {
 
+        /**
+         * Start the service.
+         * 
+         * @param file
+         *            The file to load.
+         * @throws RemoteException
+         */
         @Override
         public void startService(String file) throws RemoteException {
-
             broadcastStateChange(PlaybackService.RUNNING);
-
             loadGpxFile(file);
-
-            workerIndex = 0;
-            PlaybackService.ticker.scheduleAtFixedRate(new tickerTask(), 1000, 1000);
+            tickerHandle = scheduleTaskExecutor.scheduleAtFixedRate(new TickerTask(), 1, 1, TimeUnit.SECONDS);
         }
 
+        /**
+         * Stop the service.
+         * 
+         * @throws RemoteException
+         */
         @Override
         public void stopService() throws RemoteException {
-            PlaybackService.ticker.cancel();
+            tickerHandle.cancel(true);
 
-            mLocationManager.removeTestProvider(PlaybackService.PROVIDER_NAME);
+            if (nmeaParser != null) {
+                nmeaParser.stop();
+            }
 
             broadcastStateChange(PlaybackService.STOPPED);
 
@@ -99,22 +154,20 @@ public class PlaybackService extends Service implements GpxPullParserListener {
             return state;
         }
 
+        /**
+         * Interface for jumping around in pointList.
+         * 
+         * @param i
+         *            The amount of minutes to jump ahead/behind.
+         * @throws RemoteException
+         */
         @Override
         public void jump(int i) throws RemoteException {
-            int count = pointList.size();
-            int newIndex = ((workerIndex + (PlaybackService.SAMPLES_IN_MINUTES * i)) % count);
-            if (newIndex < 0) {
-                newIndex = count + newIndex;
-            }
-            setWorkerIndex(newIndex);
+            setWorkerIndex(workerIndex + (PlaybackService.SAMPLES_IN_MINUTES * i));
+            Log.i(PlaybackService.LOGTAG, "@" + workerIndex + "/" + pointList.size());
+            broadcastProgress((100 * workerIndex) / pointList.size());
         }
     };
-
-    private LocationManager mLocationManager;
-
-    private int state;
-
-    private ReadFileTask task;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -133,7 +186,7 @@ public class PlaybackService extends Service implements GpxPullParserListener {
         setupTestProvider();
     }
 
-    class tickerTask extends TimerTask {
+    class TickerTask implements Runnable {
         private static final float FAKE_ACCURACY = 5;
 
         private void sendLocation(final GpxTrackPoint point) {
@@ -143,9 +196,13 @@ public class PlaybackService extends Service implements GpxPullParserListener {
             loc.setBearing((float) point.getCourse());
             loc.setSpeed((float) point.getSpeed());
             loc.setTime(System.currentTimeMillis());
-            loc.setAccuracy(tickerTask.FAKE_ACCURACY);
+            loc.setAccuracy(TickerTask.FAKE_ACCURACY);
             Log.d(PlaybackService.LOGTAG, PlaybackService.PROVIDER_NAME + ": " + point.getLat() + ", " + point.getLon());
-            mLocationManager.setTestProviderLocation(PlaybackService.PROVIDER_NAME, loc);
+            try {
+                mLocationManager.setTestProviderLocation(PlaybackService.PROVIDER_NAME, loc);
+            } catch (Exception e) {
+                Log.e(PlaybackService.LOGTAG, "ARGH! " + e.getMessage());
+            }
         }
 
         @Override
@@ -159,6 +216,11 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     }
 
     public void setWorkerIndex(int newIndex) {
+        int count = pointList.size();
+        newIndex = newIndex % count;
+        if (newIndex < 0) {
+            newIndex = count + newIndex;
+        }
         synchronized (workerIndex) {
             workerIndex = newIndex;
         }
@@ -176,7 +238,9 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
     @Override
     public void onDestroy() {
-        PlaybackService.ticker.cancel();
+        if (tickerHandle != null) {
+            tickerHandle.cancel(true);
+        }
         Log.d(PlaybackService.LOGTAG, "Stopping Playback Service");
     }
 
@@ -192,6 +256,18 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
     private void loadGpxFile(String file) {
         if (file != null) {
+            if (file.equals(previousFilename)) {
+                // File hasn't changed, bail out.
+                showNotification();
+                return;
+            }
+
+            // File has changed, clear workerIndex, ...
+            workerIndex = 0;
+            // store the new file, ...
+            previousFilename = file;
+            // and clear old points.
+            pointList.clear();
 
             broadcastStatus(GpsPlaybackBroadcastReceiver.Status.fileLoadStarted);
 
@@ -204,11 +280,9 @@ public class PlaybackService extends Service implements GpxPullParserListener {
             // status bar.
             showNotification();
         }
-
     }
 
     private void queueGpxPositions(String filename) {
-        GpxPullParser parser = new GpxPullParser(this);
         File f = new File(filename);
         FileInputStream fileIS = null;
         try {
@@ -217,7 +291,13 @@ public class PlaybackService extends Service implements GpxPullParserListener {
             Log.e(PlaybackService.LOGTAG, filename + " not found!");
             showNotification(filename + " not found!");
         }
-        parser.parse(fileIS);
+        if (!filename.toLowerCase().endsWith(".nmea")) {
+            GpxPullParser parser = new GpxPullParser(this);
+            parser.parse(fileIS);
+        } else {
+            nmeaParser = new NmeaParser(this);
+            nmeaParser.parse(fileIS);
+        }
     }
 
     private void onGpsPlaybackStopped() {
@@ -232,15 +312,28 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     }
 
     private void disableGpsProvider() {
-
         if (mLocationManager.getProvider(PlaybackService.PROVIDER_NAME) != null) {
-            mLocationManager.removeTestProvider(PlaybackService.PROVIDER_NAME);
+            try {
+                mLocationManager.removeTestProvider(PlaybackService.PROVIDER_NAME);
+            } catch (SecurityException e) {
+                Log.e(PlaybackService.LOGTAG,
+                        "Manifest.ACCESS_MOCK_LOCATION or Settings.Secure.ALLOW_MOCK_LOCATION not enabled:" + e.getMessage());
+            } catch (IllegalArgumentException e) {
+                Log.e(PlaybackService.LOGTAG, "No provider with the given name exists: " + e.getMessage());
+            }
         }
     }
 
     private void setupTestProvider() {
         try {
             mLocationManager.removeTestProvider(PlaybackService.PROVIDER_NAME);
+        } catch (SecurityException e) {
+            Log.e(PlaybackService.LOGTAG,
+                    "Manifest.ACCESS_MOCK_LOCATION or Settings.Secure.ALLOW_MOCK_LOCATION not enabled:" + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            Log.e(PlaybackService.LOGTAG, "Not fatal: provider with the given name does not exist: " + e.getMessage());
+        }
+        try {
             mLocationManager.addTestProvider(PlaybackService.PROVIDER_NAME, true, // requiresNetwork,
                     false, // requiresSatellite,
                     true, // requiresCell,
@@ -260,7 +353,7 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
     // Default version.
     private void showNotification() {
-        showNotification("GPX Playback Running");
+        showNotification("GPS Playback Running");
     }
 
     /**
@@ -272,11 +365,11 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
         // The PendingIntent to launch our activity if the user selects this
         // notification
-        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), 0);
+        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, new Intent(this, GPSPlaybackActivity.class), 0);
 
         // Set the icon, scrolling text and timestamp.
         Notification notification = new NotificationCompat.Builder(this).setContentText(text).setSmallIcon(R.drawable.ic_playback_running)
-                .setWhen(System.currentTimeMillis()).setContentTitle("GPX Playback Manager").setContentIntent(contentIntent).build();
+                .setWhen(System.currentTimeMillis()).setContentTitle("GPS Playback Manager").setContentIntent(contentIntent).build();
 
         // Send the notification.
         mNM.notify(PlaybackService.NOTIFICATION, notification);
@@ -297,12 +390,12 @@ public class PlaybackService extends Service implements GpxPullParserListener {
 
     @Override
     public void onGpxStart() {
-        Log.i(PlaybackService.LOGTAG, "GPX started.");
+        Log.i(PlaybackService.LOGTAG, "GPS parsing started.");
     }
 
     @Override
     public void onGpxEnd() {
-        Log.i(PlaybackService.LOGTAG, "GPX ended with " + pointList.size() + " points parsed.");
+        Log.i(PlaybackService.LOGTAG, "GPS parsing ended with " + pointList.size() + " points parsed.");
     }
 
     private void broadcastProgress(int pct) {
@@ -367,5 +460,26 @@ public class PlaybackService extends Service implements GpxPullParserListener {
     @Override
     public void onGpxRoute(GpxTrackSegments items) {
         Log.i(PlaybackService.LOGTAG, "Got " + items.getTrackSegments().size() + " track segment items.");
+    }
+
+    @Override
+    public void readingPaused() {
+        Log.i(PlaybackService.LOGTAG, "NMEA reading paused.");
+    }
+
+    @Override
+    public void readingStarted() {
+        Log.i(PlaybackService.LOGTAG, "NMEA reading started.");
+    }
+
+    @Override
+    public void readingStopped() {
+        Log.i(PlaybackService.LOGTAG, "NMEA reading stopped.");
+    }
+
+    @Override
+    public void sentenceRead(SentenceEvent event) {
+        Sentence sentence = event.getSentence();
+        Log.i(PlaybackService.LOGTAG, "Got positionevent: " + sentence.toString());
     }
 }
