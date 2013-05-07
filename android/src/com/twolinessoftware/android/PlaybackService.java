@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2011 2linessoftware.com
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -64,12 +64,6 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
     private NotificationManager mNM;
 
     /**
-     * A handle to a NMEA parser so that its parsing can be stopped when
-     * required.
-     */
-    private NmeaParser nmeaParser = null;
-
-    /**
      * A bunch of constants.
      */
     private static final String LOGTAG = PlaybackService.class.getSimpleName();
@@ -115,7 +109,7 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
 
         /**
          * Start the service.
-         * 
+         *
          * @param file
          *            The file to load.
          * @throws RemoteException
@@ -129,16 +123,12 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
 
         /**
          * Stop the service.
-         * 
+         *
          * @throws RemoteException
          */
         @Override
         public void stopService() throws RemoteException {
             tickerHandle.cancel(true);
-
-            if (nmeaParser != null) {
-                nmeaParser.stop();
-            }
 
             broadcastStateChange(PlaybackService.STOPPED);
 
@@ -156,7 +146,7 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
 
         /**
          * Interface for jumping around in pointList.
-         * 
+         *
          * @param i
          *            The amount of minutes to jump ahead/behind.
          * @throws RemoteException
@@ -165,7 +155,7 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
         public void jump(int i) throws RemoteException {
             setWorkerIndex(workerIndex + (PlaybackService.SAMPLES_IN_MINUTES * i));
             Log.i(PlaybackService.LOGTAG, "@" + workerIndex + "/" + pointList.size());
-            broadcastProgress((100 * workerIndex) / pointList.size());
+            broadcastProgress();
         }
     };
 
@@ -209,7 +199,7 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
         public void run() {
             if (!pointList.isEmpty()) {
                 sendLocation(pointList.get(workerIndex));
-                broadcastProgress((100 * workerIndex) / pointList.size());
+                broadcastProgress();
                 setWorkerIndex(workerIndex + 1);
             }
         }
@@ -217,9 +207,20 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
 
     public void setWorkerIndex(int newIndex) {
         int count = pointList.size();
-        newIndex = newIndex % count;
-        if (newIndex < 0) {
-            newIndex = count + newIndex;
+        if (state == PlaybackService.STOPPED) {
+            // In stopped-state we won't wrap.
+            if (newIndex < 0) {
+                newIndex = 0;
+            }
+            if (newIndex > (count - 1)) {
+                newIndex = count - 1;
+            }
+        } else {
+            // Wrap is active only in playback-state.
+            newIndex = newIndex % count;
+            if (newIndex < 0) {
+                newIndex = count + newIndex;
+            }
         }
         synchronized (workerIndex) {
             workerIndex = newIndex;
@@ -295,7 +296,7 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
             GpxPullParser parser = new GpxPullParser(this);
             parser.parse(fileIS);
         } else {
-            nmeaParser = new NmeaParser(this);
+            NmeaParser nmeaParser = new NmeaParser(this);
             nmeaParser.parse(fileIS);
         }
     }
@@ -386,6 +387,7 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
         synchronized (pointList) {
             pointList.add(item);
         }
+        broadcastProgress();
     }
 
     @Override
@@ -398,7 +400,8 @@ public class PlaybackService extends Service implements GpxPullParserListener, S
         Log.i(PlaybackService.LOGTAG, "GPS parsing ended with " + pointList.size() + " points parsed.");
     }
 
-    private void broadcastProgress(int pct) {
+    private void broadcastProgress() {
+        int pct = 1 + ((100 * workerIndex) / pointList.size());
         Intent i = new Intent(GpsPlaybackBroadcastReceiver.INTENT_BROADCAST);
         i.putExtra(GpsPlaybackBroadcastReceiver.INTENT_STATUS, GpsPlaybackBroadcastReceiver.Status.playbackProgress.toString());
         i.putExtra(GpsPlaybackBroadcastReceiver.INTENT_STATE, pct);
