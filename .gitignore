@@ -1,2 +1,7 @@
 android/bin
 android/gen
+android/.gradle
+android/local.properties
+android/.idea/workspace.xml
+android/.idea/libraries
+android/build
